@@ -8,24 +8,24 @@ from data_process.generate_logger import *
 # 特征（变量）类型初步判定
 def check_feature_type(df):
 
-    features_type = {"num_discrete": [], "cls_discrete": [], "continuous": [], "other": []}
+    features_type = {"Ordered": [], "Classification": [], "Continuous": [], "Other": []}
 
     for column in df.columns:
         data_type = df[column].dtype
         # 根据数据类型选择绘图方案
         if data_type == 'int64':
-            features_type["num_discrete"].append(column)
+            features_type["Ordered"].append(column)
         elif data_type == 'float64':
             if df[column].nunique()/df.shape[0] < 0.01:
-                features_type["num_discrete"].append(column)
+                features_type["Ordered"].append(column)
             else:
-                features_type["continuous"].append(column)
+                features_type["Continuous"].append(column)
         elif data_type == 'object':
-            features_type["cls_discrete"].append(column)
+            features_type["Classification"].append(column)
         else:
-            features_type["other"].append(column)
+            features_type["Other"].append(column)
 
-    return features_type["num_discrete"], features_type["cls_discrete"], features_type["continuous"], features_type["other"]
+    return features_type["Ordered"], features_type["Classification"], features_type["Continuous"], features_type["Other"]
 
 
 def data_check_summary(df, sheet_name):
@@ -125,7 +125,7 @@ def check_data_info(data_path, sheet_name=""):
         logger.info("*****************《{}》数据核查*****************".format(sheet_name))
         data = pd.read_csv(data_path)
         logger.info("训练集所有列索引名称：\n {}".format(data.columns))
-        logger.info("训练集特征（变量）数据类型初步判定：\n cls_discrete:{} \n cls_discrete:{} \n continuous:{} \n other:{}"
+        logger.info("训练集特征（变量）数据类型初步判定：\n Ordered:{} \n Classification:{} \n Continuous:{} \n Other:{}"
                     .format(*check_feature_type(data)))
         logger.info("训练集列元素是唯一的列索引名称：{}".format(get_unique_columns(data)))
         logger.info("训练集总行数和总列数：{}".format(data.shape))
@@ -140,7 +140,7 @@ def check_data_info(data_path, sheet_name=""):
         logger.info("*****************《{}》数据核查*****************".format(sheet_name))
         data = pd.read_csv(data_path)
         logger.info("测试集所有列索引名称：\n {}".format(data.columns))
-        logger.info("测试集特征（变量）数据类型初步判定：\n cls_discrete:{} \n cls_discrete:{} \n continuous:{} \n other:{}"
+        logger.info("测试集特征（变量）数据类型初步判定：\n Ordered:{} \n Classification:{} \n Continuous:{} \n Other:{}"
                     .format(*check_feature_type(data)))
         logger.info("测试集列元素是唯一的列索引名称：{}".format(get_unique_columns(data)))
         logger.info("测试集总行数和总列数：{}".format(data.shape))
@@ -155,7 +155,7 @@ def check_data_info(data_path, sheet_name=""):
         logger.info("*****************《{}》数据集核查*****************".format(sheet_name))
         data = pd.read_csv(data_path)
         logger.info("数据集所有列索引名称：\n {}".format(data.columns))
-        logger.info("数据集特征（变量）数据类型初步判定：\n cls_discrete:{} \n cls_discrete:{} \n continuous:{} \n other:{}"
+        logger.info("数据集特征（变量）数据类型初步判定：\n Ordered:{} \n Classification:{} \n Continuous:{} \n Other:{}"
                     .format(*check_feature_type(data)))
         logger.info("数据集列元素是唯一的列索引名称：{}".format(get_unique_columns(data)))
         logger.info("数据集总行数和总列数：{}".format(data.shape))
@@ -168,4 +168,4 @@ def check_data_info(data_path, sheet_name=""):
         data_check_summary(data, sheet_name)
 
 
-check_data_info(r"E:\gitlocal\machine_learning\ori_dataset\merchants.csv", 'merchants')
+check_data_info(r"/home/leon/gitlocal/ml_code/ori_dataset/merchants.csv", 'merchants')

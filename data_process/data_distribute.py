@@ -1,10 +1,10 @@
 import csv
-import matplotlib.pyplot as plt
 from data_process.datainfo_check import *
 
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from datetime import datetime
 
 
