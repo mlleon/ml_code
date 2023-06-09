@@ -125,7 +125,7 @@ def check_data_info(data_path, sheet_name=""):
         logger.info("*****************《{}》数据核查*****************".format(sheet_name))
         data = pd.read_csv(data_path)
         logger.info("训练集所有列索引名称：\n {}".format(data.columns))
-        logger.info("训练集特征（变量）数据类型初步判定：\n Ordered:{} \n Classification:{} \n Continuous:{} \n Other:{}"
+        logger.info("训练集特征（变量）数据类型初步判定：\n ClassifyOrdered:{} \n Classification:{} \n Continuous:{} \n Other:{}"
                     .format(*check_feature_type(data)))
         logger.info("训练集列元素是唯一的列索引名称：{}".format(get_unique_columns(data)))
         logger.info("训练集总行数和总列数：{}".format(data.shape))

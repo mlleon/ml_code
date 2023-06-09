@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from scipy.interpolate import lagrange
 
@@ -36,17 +37,8 @@ def extract_string(input_string):
         return match.group(1)
 
 
-# 使用独热编码数字编码方式对分类特征编码（特征属性相互独立，即不能同时发生）
-def one_hot_encode_columns(data_df, fillCols=None):
-    for col in fillCols:
-        encoded_cols = pd.get_dummies(data_df[col], prefix=col)
-        data_df = pd.concat([data_df, encoded_cols], axis=1)
-        data_df.drop(col, axis=1, inplace=True)
-    return data_df
-
-
 # 使用有序数字编码方式对分类特征编码（考虑数值大小意义）
-def ordered_encode_columns(ori_df, delCols=None, fillCols=None):
+def ordered_encode_columns(ori_df, delCols=None, fillCols=None, outlier=None):
     data_df = ori_df.copy()
 
     if fillCols is None:
@@ -68,6 +60,10 @@ def ordered_encode_columns(ori_df, delCols=None, fillCols=None):
                 data_df[col] = data_df[col].replace(np.NINF, data_df[col].replace(np.NINF, max_value).min().min())
             if data_df[col].isnull().sum():
                 data_df[col] = data_df[col].fillna(round(min_value - 1, 0))
+
+            if outlier is not None:
+                if col in [col_ for col_ in outlier.keys()]:
+                    data_df[col] = data_df[col].replace(outlier[col], round(min_value - 1, 0))
             else:
                 continue
         elif extract_string(data_type) == "float":
@@ -80,11 +76,20 @@ def ordered_encode_columns(ori_df, delCols=None, fillCols=None):
                 data_df[col] = data_df[col].replace(np.NINF, data_df[col].replace(np.NINF, max_value).min())
             if data_df[col].isnull().sum():
                 data_df[col] = data_df[col].fillna(round(min_value - 1, 0))
+            if outlier is not None:
+                if col in [col_ for col_ in outlier.keys()]:
+                    data_df[col] = data_df[col].replace(outlier[col], round(min_value - 1, 0))
             else:
                 continue
         elif extract_string(data_type) == "object":
             col_dtype[col] = "object"
+
+            if outlier is not None:
+                if col in [col_ for col_ in outlier.keys()]:
+                    data_df[col] = data_df[col].replace(outlier[col], -1)
+
             data_df_ = data_df.copy()
+
             data_df[col] = data_df[col].fillna("ZZZZZZZZZZZZZZZZZ")
             value = data_df[col].unique().tolist()
             value.sort()
@@ -140,19 +145,19 @@ def fill_miss_value(ori_df, encode_df, fillCols, fill_method, model, n_clusters,
             obj_filler = MissingValueFiller(data_df=encode_df_, fillCols=[col])
 
             if fill_mode == "contrast":
-                encode_df_[col] = obj_filler.fill_method_contrast(fill_methods=fill_method, draw=draw)
+                encode_df_ = obj_filler.fill_method_contrast(fill_methods=fill_method, draw=draw)
             elif fill_mode == "basic":
-                encode_df_[col] = obj_filler.basic_fill_method(fill_methods=fill_method, draw=draw)
+                encode_df_ = obj_filler.basic_fill_method(fill_methods=fill_method, draw=draw)
             elif fill_mode == "kmeans":
-                encode_df_[col] = obj_filler.kmeans_group_fill_method(
-                    fillMethod=fill_method, n_clusters=n_clusters, only_missValue=True, draw=draw)[0]
+                encode_df_ = obj_filler.kmeans_group_fill_method(
+                    fillMethod=fill_method, n_clusters=n_clusters, only_missValue=True, draw=draw)
             elif fill_mode == "sequential":
-                encode_df_[col] = obj_filler.sequential_kmeans_group_fill_method(
-                    fill_method=fill_method, n_clusters=n_clusters, draw=draw)[2]
+                encode_df_ = obj_filler.sequential_kmeans_group_fill_method(
+                    fill_method=fill_method, n_clusters=n_clusters, draw=draw)
             elif fill_mode == "lagrange":
-                encode_df_[col] = obj_filler.lagrange_fill_method(draw=False)
+                encode_df_ = obj_filler.lagrange_fill_method(draw=False)
             elif fill_mode == "model":
-                encode_df_[col] = obj_filler.model_fit_fill_method(model=model, fill0=False, draw=draw)[0]
+                encode_df_ = obj_filler.model_fit_fill_method(model=model, fill0=False, draw=draw)
 
     return encode_df_, fillCols
 
@@ -440,7 +445,6 @@ class MissingValueFiller:
 
        :param draw:
        :param fillCols:
-       :param clusterCol：选定的数据集分类列
        :param n_clusters：K-means聚类算法的聚类中心数
        :param fill_method：分组后填补缺失值方法
 
@@ -462,13 +466,13 @@ class MissingValueFiller:
             fill_method = fill_method[0]
 
         # 计算所有列与列A的相关性系数
-        for fillCol in fillCols:
+        for k, fillCol in enumerate(fillCols):
             correlation = original_data.corr()[fillCol].abs()
             # 找到与列A相关性最强的另一列B
             clusterCol = correlation.drop(fillCol).idxmax()
 
             # 选择某列对数据集进行分箱或者分组
-            data_df[clusterCol].fillna(data_df[clusterCol].mode().mean(), inplace=True)
+            data_df[clusterCol].fillna(data_df[clusterCol].mode()[0], inplace=True)
             # 构建分组训练集
             x_train = data_df[clusterCol].values.reshape(-1, 1)
             cluster_values = KMeans(n_clusters, random_state=9).fit_predict(x_train)
@@ -480,7 +484,7 @@ class MissingValueFiller:
             # 2.分组并保存子集
             # 将分组后的DataFrame对象保存为列表（包含所有的有缺失值列和无缺失值列）
             cluster_full_data_df = []
-            # 将分组后的DataFrame对象保存为列表（只包含没有缺失值列和某列缺失值）
+            # 将分组后的DataFrame对象保存为列表（包含所有的无缺失值列和某列缺失值）
             LF = []
 
             for i in range(cluster_count.shape[0]):
@@ -515,54 +519,52 @@ class MissingValueFiller:
             # 填补完毕后用填补过的属性替换分组数据集中的相应字段
             for i in range(df_LF.shape[0]):
                 for j in range(df_LF.shape[1]):
-                    # 计算协方差矩阵
-                    corrs = df_LF[i][j].corr()
+                    test = df_LF[i][j]
+                    corrs = df_LF[i][j].corr().abs().round(2)
                     # 对协方差矩阵排序，选出与缺失值列相似性最高的特征
-                    best_feat = df_LF[i][j].corr().abs().round(2).sort_values(by=df_null_index[j]).index[-3]
+                    best_feat_sort = corrs.sort_values(by=df_null_index[j], ascending=False)
+                    best_feat = best_feat_sort.index[1]
                     # 以相似性最高的属性对df_LF对象降序排序
                     df_LF[i][j] = df_LF[i][j].sort_values(by=best_feat, ascending=False)
-                    # 将某个值赋值给df_LF对象中包含缺失值的列8888888888888888888888888888888888888888888
-                    df_LF[i][j][df_null_index[j]] = df_LF[i][j][df_null_index[j]].fillna(method=fill_method)
+                    # 将某个值赋值给df_LF对象中包含缺失值的列
+                    if df_LF[i][j][df_null_index[j]].isnull().sum():
+                        if fill_method in ['bfill', 'backfill', 'ffill', 'pad']:
+                            # 使用普通差值插补缺失值
+                            df_LF[i][j][df_null_index[j]] = df_LF[i][j][df_null_index[j]].fillna(method=fill_method)
+                            count = df_LF[i][j][df_null_index[j]].isnull().sum()
+                            if count:
+                                fill_value = df_LF[i][j][df_null_index[j]].mode()[0]
+                                df_LF[i][j][df_null_index[j]] = df_LF[i][j][df_null_index[j]].fillna(value=fill_value)
+
+                    # df_LF[i][j][df_null_index[j]] = df_LF[i][j][df_null_index[j]].fillna(method=fill_method)
                     # 对df_LF对象按照索引排序
                     df_LF[i][j] = df_LF[i][j].sort_index()
                     # 复制cluster_full_data_df对象
                     s = cluster_full_data_df[i].copy()
-                    # 将df_LF对象含有额缺失值列赋值给cluster_full_data_df对象对应的缺失值列
+                    # 将df_LF对象含有缺失值列赋值给cluster_full_data_df对象对应的缺失值列
                     # df_check = df_LF[i][j]
                     s.loc[:, df_null_index[j]] = df_LF[i][j][df_null_index[j]]
                     cluster_full_data_df[i] = s.copy()
 
             # 最后拼接每组填补好的数据,并重新按照索引排序,恢复数据原本排列
-            data_fill = pd.concat([i for i in cluster_full_data_df])
-            data_fill = data_fill.sort_index()
+            fill_df = pd.concat([i for i in cluster_full_data_df]).sort_index()
+            data_df[fillCol] = fill_df[fillCol]
 
-            # 查看序贯热平台填补完毕后数据的缺失值情况
-            nulldata1 = data_fill[df_null_index].isnull().sum()
+            if draw:
+                # 4. 序贯热平台填补结果拟合效果可视化
+                legend_ = ["original_data"]
+                fig = plt.figure(dpi=128, figsize=(10, 10))
 
-            # 序贯热平台填补后对少量未补全的缺失值数据填补
-            data_full_fill = data_fill.copy()
-            for missCol in list(nulldata1[nulldata1.values != 0].index):
-                data_full_fill[missCol].fillna(data_full_fill[missCol].mode().mean(), inplace=True)
-
-            # 查看最终填补完毕后的数据缺失情况
-            nulldata2 = data_full_fill.isnull().sum()
-
-        if draw:
-            # 4. 序贯热平台填补结果拟合效果可视化
-            legend_ = ["original_data"]
-            fig = plt.figure(dpi=128, figsize=(10, 10))
-
-            for i, fillCol in enumerate(fillCols):
-                ax = fig.add_subplot(math.ceil(len(fillCols) / 2), 2, i + 1)
+                ax = fig.add_subplot(math.ceil(len(fillCols) / 2), 2, k + 1)
                 original_data[fillCol].plot.kde(ax=ax)
-                data_full_fill[fillCol].plot.kde(ax=ax)
+                data_df[fillCol].plot.kde(ax=ax)
                 legend_.append(fillCol)
                 ax.legend(legend_, loc='best')
                 del legend_[-1]
-            # 显示图形
-            plt.show()
+                # 显示图形
+                plt.show()
 
-        return cluster_count, nulldata1, data_full_fill, nulldata2
+        return data_df
 
     # 适合连续性数据填补缺失值
     def lagrange_fill_method(self, fillCols=None, draw=False):
@@ -729,7 +731,7 @@ class MissingValueFiller:
             plt.show()
 
         # 遍历完所有属性后，返回填补好缺失值的数据集和填补前后数据统计量变化对比
-        return data_df, statistical_contrast
+        return data_df
 
     # 填补完整的特征列用于下一个缺失值或异常值的算法拟合填补过程
     def iterate_model_fit_fill_method(self, model, fillcols=None, fill0=False, draw=False):
@@ -863,25 +865,39 @@ class MissingValueFiller:
             plt.show()
 
         # 遍历完所有属性后,返回填补好缺失值的数据集和填补前后数据统计量变化对比
-        return data_df, statistical_contrast
+        return data_df
 
 
 def miss_value_filler(ori_df,  # 最原始的DataF数据
                       delCols,  # 不需要数据编码的列，列表类型
-                      fillCols,     # 需要填补缺失值的列，列表类型
-                      fill_method,     # 填充方法，列表类型或字符串类型
-                      model,    # 填补缺失值拟合模型
-                      fill_mode,   # 填充方法名称（选择哪种填充方式），字符串类型
-                      n_clusters,     # K-means聚类算法的聚类中心数
-                      draw):      # 是否绘制对比图
-    for col in fillCols:
-        count = ori_df[col].isnull().sum()
-        if count:
-            # 对DataFrame数据进行编码，全部转为数字类型
-            encode_df, col_dtype = ordered_encode_columns(ori_df=ori_df, delCols=delCols)
-            # 将每列最小值转化为NAN，然后填补该列缺失值
-            filled_df, fillCols = fill_miss_value(ori_df=ori_df, encode_df=encode_df, fillCols=[col],
-                                                  fill_method=fill_method, model=model, n_clusters=n_clusters,
-                                                  fill_mode=fill_mode, draw=draw)
+                      fillCols,  # 需要填补缺失值的列，列表类型
+                      outlier,  # 异常值字典，字典类型{col:outlier}
+                      fill_method,  # 填充方法，列表类型或字符串类型
+                      model,  # 填补缺失值拟合模型
+                      fill_mode,  # 填充方法名称（选择哪种填充方式），字符串类型
+                      n_clusters,  # K-means聚类算法的聚类中心数
+                      draw):  # 是否绘制对比图
+    # for col in fillCols:
+    # count = ori_df[col].isnull().sum()
+    # if count:
+    # 对DataFrame数据进行编码，全部转为数字类型
+    encode_df, col_dtype = ordered_encode_columns(ori_df=ori_df, delCols=delCols, outlier=outlier)
+    # 将每列最小值转化为NAN，然后填补该列缺失值
+    filled_df, fillCols = fill_miss_value(ori_df=ori_df, encode_df=encode_df, fillCols=fillCols,
+                                          fill_method=fill_method, model=model, n_clusters=n_clusters,
+                                          fill_mode=fill_mode, draw=draw)
 
-            return filled_df
+    return filled_df
+
+# ori_df = pd.read_csv(r'E:\gitlocal\ml_code\ori_dataset\merchants.csv', header=0)
+# fillCols = ['category_2']
+#
+# filled_df = miss_value_filler(ori_df,  # 最原始的DataF数据
+#                               delCols=None,  # 不需要数据编码的列，列表类型
+#                               fillCols=fillCols,  # 需要填补缺失值的列，列表类型
+#                               outlier=None,     # 异常值字典，字典类型{col:outlier}
+#                               fill_method="bfill",  # 填充方法，列表类型或字符串类型
+#                               model=RandomForestRegressor(n_estimators=100),   # 填补缺失值拟合模型
+#                               fill_mode="sequential",  # 填充方法名称（选择哪种填充方式），字符串类型
+#                               n_clusters=2,  # K-means聚类算法的聚类中心数
+#                               draw=False)  # 是否绘制对比图
