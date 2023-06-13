@@ -2,7 +2,7 @@ import io
 import os
 import pandas as pd
 from openpyxl import load_workbook
-from data_process.generate_logger import *
+from generate_logger import *
 
 
 # 特征（变量）类型初步判定
@@ -116,7 +116,7 @@ def get_unique_columns(df):
 
 # 检查数据集训练集和测试集分布是否一致
 def check_data_info(data_path, sheet_name=""):
-    logfile_path = "./dataset_info.log"
+    logfile_path = "dataset_check.log"
     logger = configure_logger(logfile_path)
     # 设置显示所有列
     pd.set_option('display.max_columns', None)

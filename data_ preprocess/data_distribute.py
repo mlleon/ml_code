@@ -128,7 +128,7 @@ def combine_feature(df):
 
 # 检查数据集训练集和测试集分布是否一致
 def check_data_distribution(train_path, test_path, check_features, label_col="target"):
-    logfile_path = "./dataset_info.log"
+    logfile_path = "dataset_check.log"
     logger = configure_logger(logfile_path)
 
     # 设置显示所有列

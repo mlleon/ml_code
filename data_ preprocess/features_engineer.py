@@ -1,9 +1,7 @@
-import pandas as pd
 from sklearn.preprocessing import Binarizer
 from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.preprocessing import PolynomialFeatures
-from data_process.missvalue_filler import *
-from sklearn import preprocessing
+from missvalue_filler import *
 import numpy as np
 import itertools
 
@@ -257,36 +255,347 @@ def multi_variate_cross_generate_poly_features(df, fillCols, degree):
     return data_df
 
 
-def group_combination_statistic(df, statistics_colNames, groupby_colNames, statistical_methods):
+def group_statistical_firstorder_features(df, statistics_colNames, groupby_colNames, statistical_methods):
     data_df = df.copy()
 
     df_temp_list = []
+    stat_methods = statistical_methods.copy()
     for statistics_colName in statistics_colNames:
-        if 'q1' in statistical_methods:
-            data_df[f"{statistics_colName}_{'&'.join(groupby_colNames)}_q1"] = data_df[statistics_colNames].quantile(0.25)
-            statistical_methods.remove('q1')
-        if 'q2' in statistical_methods:
-            data_df[f"{statistics_colName}_{'&'.join(groupby_colNames)}_q2"] = data_df[statistics_colNames].quantile(0.75)
-            statistical_methods.remove('q2')
+        if 'q1' in stat_methods:
+            data_df[f"{statistics_colName}_{'&'.join(groupby_colNames)}_q1"] = data_df[statistics_colName].quantile(
+                0.25)
+            stat_methods.remove('q1')
+        if 'q2' in stat_methods:
+            data_df[f"{statistics_colName}_{'&'.join(groupby_colNames)}_q2"] = data_df[statistics_colName].quantile(
+                0.75)
+            stat_methods.remove('q2')
 
-        group_features_df = data_df.groupby(groupby_colNames)[statistics_colName].agg(statistical_methods).reset_index()
+        group_features_df = data_df.groupby(groupby_colNames)[statistics_colName].agg(stat_methods).reset_index()
 
         statistical_features_cols = []
-        for statistical_method in statistical_methods:
-            statistical_features_cols.append(f'{statistics_colName}_{"&".join(groupby_colNames)}_{statistical_method}')
+        for stat_method in stat_methods:
+            statistical_features_cols.append(f'{statistics_colName}_{"&".join(groupby_colNames)}_{stat_method}')
 
         statistical_features_cols = groupby_colNames + statistical_features_cols
         group_features_df.columns = statistical_features_cols
 
         df_temp = pd.merge(data_df, group_features_df, how='left', on=groupby_colNames)
         df_temp_list.append(df_temp)
+        stat_methods = statistical_methods.copy()
 
     if len(df_temp_list) == 1:
         df_combined = df_temp_list[0]
     else:
-        df_combined = pd.merge(*df_temp_list, how='outer', on=df.columns.tolist())
+        df_combined = pd.merge(*df_temp_list, how='outer')
 
     return df_combined
+
+
+# 分组统计衍生特征函数（二阶）
+def group_statistical_secorder_features(features_df,
+                                        groupby_columns,
+                                        colNames_sub,
+                                        statistical_methods,
+                                        stream_smooth=True,
+                                        good_combination=True,
+                                        intra_group_normalization=True,
+                                        gap_feature=True,
+                                        data_skew_subtractor=True,
+                                        data_skew_divider=True,
+                                        variable_coefficient=True):
+    """二阶衍生特征函数
+
+    :param features_df: 传入一阶分组统计衍生函数[group_statistical_oneorder_features]分组列索引名称列表
+    :param groupby_columns：传入一阶分组统计衍生函数[group_statistical_oneorder_features]分组列索引名称列表
+    :param colNames_sub:传入一阶分组统计衍生函数[group_statistical_oneorder_features]被汇总的列索引名称列表
+    :param statistical_methods:传入一阶分组统计衍生函数[group_statistical_oneorder_features]统计方法列表
+
+    :param stream_smooth：是否执行流量平滑特征(stream_smooth)
+    :param good_combination:是否执行黄金组合特征(good_combination)
+    :param intra_group_normalization:是否执行组内归一化特征(Intra_group_normalization)
+    :param gap_feature:是否执行Gap特征(gap_feature)
+    :param data_skew_subtractor:是否执行数据倾斜(data_skew)
+    :param data_skew_divider: 是否执行数据倾斜(data_skew)
+    :param variable_coefficient:是否执行变异系数(variable_coefficient)
+
+    :return：分组统计衍生特征（一阶衍生特征），分组统计衍生特征（一阶衍生特征） + 二阶衍升特征
+
+    """
+
+    # 分组统计衍生特征函数（一阶）
+    def group_statistical_oneorder_features(data_df, groupby_colNames, stat_colNames, stat_Methods):
+        """分组统计衍生函数
+
+        :param data_df: 原始数据集
+        :param groupby_colNames：传入分组列索引名称列表
+        :param stat_colNames:传入统计计算的列索引名称列表
+        :param stat_Methods:传入统计量方法列表
+
+        :return：分组衍生后的新特征（一阶特征），新特征（一阶特征）列索引名称
+
+        """
+
+        aggs = {}
+        groupby_features_df = None
+        groupby_features_cols = groupby_colNames.copy()
+        for col in stat_colNames:
+            features_df_1 = data_df.copy()
+            stat_list = stat_Methods.copy()
+            if 'q1' in stat_Methods:
+                features_df_1[f"{col}_{'&'.join(groupby_features_cols)}_q1"] = features_df_1[col].quantile(0.25)
+                stat_list.remove('q1')
+            if 'q2' in stat_Methods:
+                features_df_1[f"{col}_{'&'.join(groupby_features_cols)}_q2"] = features_df_1[col].quantile(0.75)
+                stat_list.remove('q2')
+
+            # 获取分组特征新的列名称
+            aggs[col] = stat_list
+            groupby_columns_join = '&'.join(groupby_colNames)
+            for key in aggs.keys():
+                groupby_features_cols.extend([key + '_' + groupby_columns_join + '_' + stat for stat in stat_list])
+
+            # 3.分组统计后的新特征对象，并添加新的特征列名称
+            for key, value in aggs.items():
+                if 'q1' in value:
+                    value.remove('q1')
+                if 'q2' in value:
+                    value.remove('q2')
+            features_df_2 = data_df.groupby(groupby_colNames)[col].agg(aggs[col]).reset_index()
+            features_df_2.columns = groupby_features_cols
+            groupby_features_df = pd.merge(features_df_1, features_df_2, on=groupby_colNames, how='outer')
+
+        return groupby_features_df, groupby_features_df.columns
+
+    def acquire_list_element(column_indexs_list, specific_statistical_method):
+        """查找对应分组统计方法的特征名称
+
+        :param column_indexs_list：传入分组统计衍生函数的返回值，groupby_features_cols
+        :param specific_statistical_method:传入特定统计方法（如：'mean', 'min', 'max'等）
+
+        :return：被查找的分组统计方法的特征名称（如：'MonthlyCharges_tenure&SeniorCitizen_mean'）
+
+        """
+        group_combination_statistic_names = []
+        for col_name in column_indexs_list:
+            if '_' not in col_name:
+                continue
+            if col_name[col_name.rindex('_') + 1:] == specific_statistical_method:
+                group_combination_statistic_names.append(col_name)
+        return group_combination_statistic_names
+
+    # 执行一阶分组统计衍生函数
+    group_features_df, col_Names_index = group_statistical_oneorder_features(features_df.copy(),
+                                                                             groupby_columns,
+                                                                             colNames_sub,
+                                                                             statistical_methods)
+
+    """1.原始特征与分组汇总特征交叉衍生"""
+    # 1.1 流量平滑特征(stream_smooth)
+    if stream_smooth:
+        # 调用查找列表某个元素的值和对应的索引值
+        stream_smooth_feature_names = acquire_list_element(col_Names_index, 'mean')
+
+        # 计算流量平滑特征(stream_smooth)
+        stream_smooth_dict = {}
+        for stream_smooth_feature_name in stream_smooth_feature_names:
+            stream_smooth_dict[stream_smooth_feature_name] = \
+                group_features_df[groupby_columns].sum(axis=1) / (
+                        group_features_df[stream_smooth_feature_name] + 1e-5)
+        stream_smooth_feature = pd.DataFrame(stream_smooth_dict)
+
+        # 流量平滑特征(stream_smooth)加上前缀stream_smooth_
+        stream_smooth_feature = stream_smooth_feature.add_prefix('stream_smooth_')
+        stream_smooth_feature = pd.concat([group_features_df, stream_smooth_feature], axis=1)
+    else:
+        stream_smooth_feature = group_features_df
+
+    # 1.2 黄金组合特征(good_combination)
+    if good_combination:
+        # 调用查找列表某个元素的值和对应的索引值
+        good_combination_feature_names = acquire_list_element(col_Names_index, 'mean')
+
+        # 计算黄金组合特征(good_combination)
+        good_combination_dict = {}
+        for good_combination_feature_name in good_combination_feature_names:
+            good_combination_dict[good_combination_feature_name] = \
+                group_features_df[groupby_columns].sum(axis=1) - group_features_df[good_combination_feature_name]
+        good_combination_feature = pd.DataFrame(good_combination_dict)
+
+        # 黄金组合特征(good_combination)加上前缀good_combination_
+        good_combination_feature = good_combination_feature.add_prefix('good_combination_')
+        good_combination_feature = pd.concat([group_features_df, good_combination_feature], axis=1)
+    else:
+        good_combination_feature = group_features_df
+    good_combination_feature = pd.merge(stream_smooth_feature, good_combination_feature, how='left')
+
+    # 1.3 组内归一化特征(Intra_group_normalization)
+    if intra_group_normalization:
+        # 调用查找列表某个元素的值和对应的索引值
+        intra_group_normalization_feature_means = acquire_list_element(col_Names_index, 'mean')
+        # 组内归一化mean特征列(intra_group_normalization)
+        intra_group_normalization_mean_dict = {}
+        for intra_group_normalization_feature_mean in intra_group_normalization_feature_means:
+            intra_group_normalization_mean_dict[intra_group_normalization_feature_mean] = \
+                (group_features_df[groupby_columns].sum(axis=1) - group_features_df[
+                    intra_group_normalization_feature_mean])
+        intra_group_normalization_mean_feature = pd.DataFrame(intra_group_normalization_mean_dict)
+
+        # 调用查找列表某个元素的值和对应的索引值
+        intra_group_normalization_feature_vars = acquire_list_element(col_Names_index, 'var')
+        # 组内归一化var特征列(intra_group_normalization)
+        intra_group_normalization_var_dict = {}
+        for intra_group_normalization_feature_var in intra_group_normalization_feature_vars:
+            intra_group_normalization_var_dict[intra_group_normalization_feature_var] = \
+                np.sqrt(group_features_df[intra_group_normalization_feature_var]) + 1e-5
+        intra_group_normalization_var_feature = pd.DataFrame(intra_group_normalization_var_dict)
+        intra_group_normalization_var_feature.columns = intra_group_normalization_mean_feature.columns
+
+        # 计算组内归一化特征最终值
+        intra_group_normalization_mean_var_feature = intra_group_normalization_mean_feature / intra_group_normalization_var_feature
+
+        # 组内归一化特征(intra_group_normalization)加上前缀intra_group_normalization_和后缀_var
+        intra_group_normalization_mean_var_feature = \
+            intra_group_normalization_mean_var_feature.add_prefix('intra_group_normalization_')
+        intra_group_normalization_mean_var_feature = \
+            intra_group_normalization_mean_var_feature.add_suffix('_var')
+        intra_group_normalization_mean_var_feature = \
+            pd.concat([group_features_df, intra_group_normalization_mean_var_feature], axis=1)
+    else:
+        intra_group_normalization_mean_var_feature = group_features_df
+    intra_group_normalization_mean_var_feature = \
+        pd.merge(good_combination_feature, intra_group_normalization_mean_var_feature, how='left')
+
+    """2.分组汇总特征彼此交叉衍生"""
+    # 2.1 Gap特征(gap_feature)
+    if gap_feature:
+        # 调用查找列表某个元素的值和对应的索引值
+        gap_feature_q2s = acquire_list_element(col_Names_index, specific_statistical_method='q2')
+        # Gap的q2特征列(gap)
+        gap_q2_dict = {}
+        for gap_feature_q2 in gap_feature_q2s:
+            gap_q2_dict[gap_feature_q2] = group_features_df[gap_feature_q2]
+        gap_q2_feature = pd.DataFrame(gap_q2_dict)
+
+        # 调用查找列表某个元素的值和对应的索引值
+        gap_feature_q1s = acquire_list_element(col_Names_index, specific_statistical_method='q1')
+        # Gap的q1特征列(gap)
+        gap_q1_dict = {}
+        for gap_feature_q1 in gap_feature_q1s:
+            gap_q1_dict[gap_feature_q1] = group_features_df[gap_feature_q1]
+        gap_q1_feature = pd.DataFrame(gap_q1_dict)
+        gap_q1_feature.columns = gap_q2_feature.columns
+
+        # 计算Gap特征最终值
+        gap_q2_q1_feature = gap_q2_feature - gap_q1_feature
+
+        # Gap特征(gap)加上前缀gap_和后缀_q1
+        gap_q2_q1_feature = gap_q2_q1_feature.add_prefix('gap_')
+        gap_q2_q1_feature = gap_q2_q1_feature.add_suffix('_q1')
+        gap_q2_q1_feature = pd.concat([group_features_df, gap_q2_q1_feature], axis=1)
+    else:
+        gap_q2_q1_feature = group_features_df
+    gap_q2_q1_feature = pd.merge(intra_group_normalization_mean_var_feature, gap_q2_q1_feature, how='left')
+
+    # 2.2 数据倾斜特征(data_skew_subtractor)
+    if data_skew_subtractor:
+        # 调用查找列表某个元素的值和对应的索引值
+        data_skew_feature_means = acquire_list_element(col_Names_index, specific_statistical_method='mean')
+        # 数据倾斜mean特征列(data_skew)
+        data_skew_mean_dict = {}
+        for data_skew_feature_mean in data_skew_feature_means:
+            data_skew_mean_dict[data_skew_feature_mean] = group_features_df[data_skew_feature_mean]
+        data_skew_mean_feature = pd.DataFrame(data_skew_mean_dict)
+
+        # 调用查找列表某个元素的值和对应的索引值
+        data_skew_feature_medians = acquire_list_element(col_Names_index, specific_statistical_method='median')
+        # 数据倾斜median特征列(data_skew)
+        data_skew_median_dict = {}
+        for data_skew_feature_median in data_skew_feature_medians:
+            data_skew_median_dict[data_skew_feature_median] = group_features_df[data_skew_feature_median]
+        data_skew_median_feature = pd.DataFrame(data_skew_median_dict)
+        data_skew_median_feature.columns = data_skew_mean_feature.columns
+
+        # 计算数据倾斜特征最终值(减法)
+        data_skew_mean_median_feature = data_skew_mean_feature - data_skew_median_feature
+
+        # 数据倾斜特征(data_skew)加上前缀data_skew_subtractor_和后缀_median
+        data_skew_subtractor_mean_median_feature = data_skew_mean_median_feature.add_prefix('data_skew_subtractor_')
+        data_skew_subtractor_mean_median_feature = data_skew_subtractor_mean_median_feature.add_suffix('_median')
+        data_skew_subtractor_mean_median_feature = pd.concat(
+            [group_features_df, data_skew_subtractor_mean_median_feature], axis=1)
+    else:
+        data_skew_subtractor_mean_median_feature = group_features_df
+    data_skew_subtractor_mean_median_feature = pd.merge(gap_q2_q1_feature, data_skew_subtractor_mean_median_feature,
+                                                        how='left')
+
+    # 2.3 数据倾斜特征(data_skew_divider)
+    if data_skew_divider:
+        # 调用查找列表某个元素的值和对应的索引值
+        data_skew_feature_means = acquire_list_element(col_Names_index, 'mean')
+        # 数据倾斜mean特征列(data_skew)
+        data_skew_mean_dict = {}
+        for data_skew_feature_mean in data_skew_feature_means:
+            data_skew_mean_dict[data_skew_feature_mean] = group_features_df[data_skew_feature_mean]
+        data_skew_mean_feature = pd.DataFrame(data_skew_mean_dict)
+
+        # 调用查找列表某个元素的值和对应的索引值
+        data_skew_feature_medians = acquire_list_element(col_Names_index, 'median')
+        # 数据倾斜median特征列(data_skew)
+        data_skew_median_dict = {}
+        for data_skew_feature_median in data_skew_feature_medians:
+            data_skew_median_dict[data_skew_feature_median] = group_features_df[data_skew_feature_median] + 1e-5
+        data_skew_median_feature = pd.DataFrame(data_skew_median_dict)
+        data_skew_median_feature.columns = data_skew_mean_feature.columns
+
+        # 计算数据倾斜特征最终值(除法)
+        data_skew_mean_median_feature = data_skew_mean_feature / data_skew_median_feature
+
+        # 数据倾斜特征(data_skew)加上前缀data_skew_divider_和后缀_median
+        data_skew_divider_mean_median_feature = data_skew_mean_median_feature.add_prefix('data_skew_divider_')
+        data_skew_divider_mean_median_feature = data_skew_divider_mean_median_feature.add_suffix('_median')
+        data_skew_divider_mean_median_feature = pd.concat(
+            [group_features_df, data_skew_divider_mean_median_feature], axis=1)
+    else:
+        data_skew_divider_mean_median_feature = group_features_df
+    data_skew_divider_mean_median_feature = pd.merge(data_skew_subtractor_mean_median_feature,
+                                                     data_skew_divider_mean_median_feature, how='left')
+
+    # 2.4 变异系数特征(variable_coefficient)
+    if variable_coefficient:
+        # 调用查找列表某个元素的值和对应的索引值
+        variable_coefficient_feature_vars = acquire_list_element(col_Names_index, 'var')
+        # 变异系数var特征列(variable_coefficient)
+        variable_coefficient_var_dict = {}
+        for variable_coefficient_feature_var in variable_coefficient_feature_vars:
+            variable_coefficient_var_dict[variable_coefficient_feature_var] = np.sqrt(
+                group_features_df[variable_coefficient_feature_var])
+        variable_coefficient_var_feature = pd.DataFrame(variable_coefficient_var_dict)
+
+        # 调用查找列表某个元素的值和对应的索引值
+        variable_coefficient_feature_means = acquire_list_element(col_Names_index, 'mean')
+        # 变异系数mean特征列(variable_coefficient)
+        variable_coefficient_mean_dict = {}
+        for variable_coefficient_feature_mean in variable_coefficient_feature_means:
+            variable_coefficient_mean_dict[variable_coefficient_feature_mean] = group_features_df[
+                                                                                    variable_coefficient_feature_mean] + 1e-10
+        variable_coefficient_mean_feature = pd.DataFrame(variable_coefficient_mean_dict)
+        variable_coefficient_mean_feature.columns = variable_coefficient_var_feature.columns
+
+        # 计算变异系数特征最终值
+        variable_coefficient_var_mean_feature = variable_coefficient_var_feature / variable_coefficient_mean_feature
+
+        # 变异系数特征(variable_coefficient)加上前缀variable_coefficient_和后缀_mean
+        variable_coefficient_var_mean_feature = variable_coefficient_var_mean_feature.add_prefix(
+            'variable_coefficient_')
+        variable_coefficient_var_mean_feature = variable_coefficient_var_mean_feature.add_suffix('_mean')
+        variable_coefficient_var_mean_feature = pd.concat(
+            [group_features_df, variable_coefficient_var_mean_feature], axis=1)
+    else:
+        variable_coefficient_var_mean_feature = group_features_df
+    groupby_features_all_df = pd.merge(data_skew_divider_mean_median_feature, variable_coefficient_var_mean_feature,
+                                       how='left')
+
+    return groupby_features_all_df
 
 
 ori_df = pd.read_csv(r"E:\gitlocal\ml_code\common_dataset\Narrativedata.csv", index_col=0)
@@ -321,8 +630,23 @@ filled_df = miss_value_filler(ori_df,  # 最原始的DataF数据
 # data_6 = multi_variate_cross_generate_poly_features(df=filled_df,
 #                                                     fillCols=['Sex', 'Embarked', 'Survived'], degree=3)
 
-data_7 = group_combination_statistic(df=filled_df, statistics_colNames=['Age', "Survived"], groupby_colNames=['Sex', 'Embarked'],
-                                     statistical_methods=['mean', 'median', 'var', 'max', 'min', 'std'])
+data_7 = group_statistical_firstorder_features(df=filled_df, statistics_colNames=['Age', "Survived"],
+                                               groupby_colNames=['Sex', 'Embarked'],
+                                               statistical_methods=['mean', 'median', 'var', 'max', 'min', 'std', 'q1', 'q2'])
+
+# data_8 = group_statistical_secorder_features(
+#                             features_df=filled_df,
+#                             groupby_columns=['Sex', 'Embarked'],
+#                             colNames_sub=['Survived'],
+#                             statistical_methods=['mean', 'median', 'var',
+#                                                  'max', 'min', 'std', 'q1', 'q2'],
+#                             stream_smooth=True,
+#                             good_combination=False,
+#                             intra_group_normalization=False,
+#                             gap_feature=False,
+#                             data_skew_subtractor=False,
+#                             data_skew_divider=False,
+#                             variable_coefficient=False)
 
 # 设置显示所有列
 pd.set_option('display.max_columns', None)
@@ -336,3 +660,4 @@ pd.set_option('display.max_columns', None)
 # print(data_6)
 print(data_7)
 print(data_7.isnull().sum())
+# print(data_8)
