@@ -6,11 +6,6 @@ import numpy as np
 import itertools
 
 
-# def OrderedClassify(df):
-# def DiscreteClassify(df):
-# def ContinuousNumeric(df):
-
-
 def process_timeseries(df):
     from datetime import datetime
     # 提取日期中的月份
@@ -198,7 +193,7 @@ def multi_variate_cross_generate_features(colNames, df, OneHot=True):
 
     # 逐个创建新特征名称、新特征
     for combination in feature_combinations:
-        newNames = '&'.join([col + '=' + str(val) for col, val in zip(colNames, combination)])
+        newNames = '&'.join([col + '_' + str(val) for col, val in zip(colNames, combination)])
         colNames_new_l.append(newNames)
         newDF = pd.Series(np.where((data_df[colNames] == list(combination)).all(axis=1), 1, 0), name=newNames)
         features_new_l.append(newDF)
@@ -238,6 +233,14 @@ def double_variate_cross_generate_poly_features(df, fillCols, degree):
     poly_df = pd.DataFrame(concatenated_array, columns=column_names_ploy)
     data_df = pd.concat([data_df, poly_df], axis=1)
 
+    # 将列名中的空格替换为下划线
+    data_df.rename(columns=lambda x: x.replace(' ', '_'), inplace=True)
+
+    # 找到重复列的布尔索引
+    duplicated_columns = data_df.T.duplicated()
+    # 删除重复列
+    data_df = data_df.loc[:, ~duplicated_columns]
+
     return data_df
 
 
@@ -251,6 +254,14 @@ def multi_variate_cross_generate_poly_features(df, fillCols, degree):
     # 生成双变量多阶多项式衍升特征转换为DataFrame对象，并添加列索引
     poly_df = pd.DataFrame(ploy_variable, columns=column_temps)
     data_df = pd.concat([data_df, poly_df], axis=1)
+
+    # 将列名中的空格替换为下划线
+    data_df.rename(columns=lambda x: x.replace(' ', '_'), inplace=True)
+
+    # 找到重复列的布尔索引
+    duplicated_columns = data_df.T.duplicated()
+    # 删除重复列
+    data_df = data_df.loc[:, ~duplicated_columns]
 
     return data_df
 
@@ -610,54 +621,82 @@ filled_df = miss_value_filler(ori_df,  # 最原始的DataF数据
                               n_clusters=2,  # K-means聚类算法的聚类中心数
                               draw=False)  # 是否绘制对比图
 
-# data_1 = single_variate_generate_features(df=filled_df, fillCols=['Age'],
-#                                           methods=["binarizer", "kbins", "single_variable_poly"],
-#                                           threshold=30, n_bins=5, degree=5)
-#
-# data_2 = double_variate_cross_generate_math_features(df=filled_df,
-#                                                      fillCols=['Sex', 'Embarked', 'Survived'],
-#                                                      methods=["add", "sub", "div", "multi"])
-#
-# data_3 = double_variate_cross_generate_features(colNames=['Sex', 'Embarked', 'Survived'],
-#                                                 df=filled_df, OneHot=True)
-#
-# data_4 = double_variate_cross_generate_poly_features(df=filled_df,
-#                                                      fillCols=['Sex', 'Embarked', 'Survived'], degree=2)
-#
-# data_5 = multi_variate_cross_generate_features(colNames=['Sex', 'Embarked', 'Survived'],
-#                                                df=filled_df, OneHot=True)
-#
-# data_6 = multi_variate_cross_generate_poly_features(df=filled_df,
-#                                                     fillCols=['Sex', 'Embarked', 'Survived'], degree=3)
 
-data_7 = group_statistical_firstorder_features(df=filled_df, statistics_colNames=['Age', "Survived"],
-                                               groupby_colNames=['Sex', 'Embarked'],
-                                               statistical_methods=['mean', 'median', 'var', 'max', 'min', 'std', 'q1', 'q2'])
+def gen_features(methods):
+    data = {}
 
-# data_8 = group_statistical_secorder_features(
-#                             features_df=filled_df,
-#                             groupby_columns=['Sex', 'Embarked'],
-#                             colNames_sub=['Survived'],
-#                             statistical_methods=['mean', 'median', 'var',
-#                                                  'max', 'min', 'std', 'q1', 'q2'],
-#                             stream_smooth=True,
-#                             good_combination=False,
-#                             intra_group_normalization=False,
-#                             gap_feature=False,
-#                             data_skew_subtractor=False,
-#                             data_skew_divider=False,
-#                             variable_coefficient=False)
+    feature_methods = {
+        "single_variate_generate_features": lambda: single_variate_generate_features(
+            df=filled_df,
+            fillCols=['Age'],
+            methods=["binarizer", "kbins", "single_variable_poly"],
+            threshold=30,
+            n_bins=5,
+            degree=5),
+        "double_variate_cross_generate_math_features": lambda: double_variate_cross_generate_math_features(
+            df=filled_df,
+            fillCols=['Sex', 'Embarked', 'Survived'],
+            methods=["add", "sub", "div", "multi"]),
+        "double_variate_cross_generate_features": lambda: double_variate_cross_generate_features(
+            colNames=['Sex', 'Embarked', 'Survived'],
+            df=filled_df,
+            OneHot=True),
+        "double_variate_cross_generate_poly_features": lambda: double_variate_cross_generate_poly_features(
+            df=filled_df,
+            fillCols=['Sex', 'Embarked', 'Survived'],
+            degree=2),
+        "multi_variate_cross_generate_features": lambda: multi_variate_cross_generate_features(
+            colNames=['Sex', 'Embarked', 'Survived'],
+            df=filled_df,
+            OneHot=True),
+        "multi_variate_cross_generate_poly_features": lambda: multi_variate_cross_generate_poly_features(
+            df=filled_df,
+            fillCols=['Sex', 'Embarked', 'Survived'],
+            degree=3),
+        "group_statistical_firstorder_features": lambda: group_statistical_firstorder_features(
+            df=filled_df,
+            statistics_colNames=['Age', "Survived"],
+            groupby_colNames=['Sex', 'Embarked'],
+            statistical_methods=['mean', 'median', 'var', 'max', 'min', 'std', 'q1', 'q2']),
+        "group_statistical_secorder_features": lambda: group_statistical_secorder_features(
+            features_df=filled_df,
+            groupby_columns=['Sex', 'Embarked'],
+            colNames_sub=['Survived'],
+            statistical_methods=['mean', 'median', 'var', 'max', 'min', 'std', 'q1', 'q2'],
+            stream_smooth=True,
+            good_combination=False,
+            intra_group_normalization=False,
+            gap_feature=False,
+            data_skew_subtractor=False,
+            data_skew_divider=False,
+            variable_coefficient=False)
+    }
 
-# 设置显示所有列
-pd.set_option('display.max_columns', None)
-# print(data_1)
-# print(data_2)
-# print(data_2.isnull().sum())
-# print(data_3)
-# print(data_4)
-# print(data_5)
-# print(data_5.isnull().sum())
-# print(data_6)
-print(data_7)
-print(data_7.isnull().sum())
-# print(data_8)
+    for method in methods:
+        if method in feature_methods:
+            data[method] = feature_methods[method]()
+        else:
+            print("Invalid feature generate method:", method)
+
+    features_list = [value for value in data.values()]
+
+    # 初始化合并结果为第一个DataFrame对象
+    combined_df = features_list[0]
+    # 从第二个DataFrame开始迭代合并
+    for df in features_list[1:]:
+        # 检查列名是否有重复
+        if combined_df.columns.duplicated().any() or df.columns.duplicated().any():
+            raise ValueError("Duplicate column names found!")
+        combined_df = pd.merge(combined_df, df, how='outer')
+
+    return combined_df
+
+
+gen_features(methods=['single_variate_generate_features'
+    , 'double_variate_cross_generate_math_features'
+    , 'double_variate_cross_generate_features'
+    , 'double_variate_cross_generate_poly_features'
+    , 'multi_variate_cross_generate_features'
+    , 'multi_variate_cross_generate_poly_features'
+    # ,'group_statistical_firstorder_features'
+    ])
