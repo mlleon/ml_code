@@ -1,5 +1,5 @@
 import csv
-from data_process.datainfo_check import *
+from datainfo_check_1 import *
 
 
 import matplotlib.pyplot as plt

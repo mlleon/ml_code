@@ -1,5 +1,5 @@
-2023-06-04 01:19:15,259 [INFO] *****************¡¶merchants¡·Êı¾İ¼¯ºË²é*****************
-2023-06-04 01:19:15,929 [INFO] Êı¾İ¼¯ËùÓĞÁĞË÷ÒıÃû³Æ£º
+2023-07-27 14:02:57,073 [INFO] *****************¡¶merchants¡·Êı¾İ¼¯ºË²é*****************
+2023-07-27 14:02:57,770 [INFO] Êı¾İ¼¯ËùÓĞÁĞË÷ÒıÃû³Æ£º
  Index(['merchant_id', 'merchant_group_id', 'merchant_category_id',
        'subsector_id', 'numerical_1', 'numerical_2', 'category_1',
        'most_recent_sales_range', 'most_recent_purchases_range',
@@ -8,14 +8,14 @@
        'avg_sales_lag12', 'avg_purchases_lag12', 'active_months_lag12',
        'category_4', 'city_id', 'state_id', 'category_2'],
       dtype='object')
-2023-06-04 01:19:15,985 [INFO] Êı¾İ¼¯ÌØÕ÷£¨±äÁ¿£©Êı¾İÀàĞÍ³õ²½ÅĞ¶¨£º
- cls_discrete:['merchant_group_id', 'merchant_category_id', 'subsector_id', 'numerical_1', 'numerical_2', 'active_months_lag3', 'active_months_lag6', 'active_months_lag12', 'city_id', 'state_id', 'category_2'] 
- cls_discrete:['merchant_id', 'category_1', 'most_recent_sales_range', 'most_recent_purchases_range', 'category_4'] 
- continuous:['avg_sales_lag3', 'avg_purchases_lag3', 'avg_sales_lag6', 'avg_purchases_lag6', 'avg_sales_lag12', 'avg_purchases_lag12'] 
- other:[]
-2023-06-04 01:19:16,137 [INFO] Êı¾İ¼¯ÁĞÔªËØÊÇÎ¨Ò»µÄÁĞË÷ÒıÃû³Æ£º[]
-2023-06-04 01:19:16,137 [INFO] Êı¾İ¼¯×ÜĞĞÊıºÍ×ÜÁĞÊı£º(334696, 22)
-2023-06-04 01:19:16,312 [INFO] <class 'pandas.core.frame.DataFrame'>
+2023-07-27 14:02:57,827 [INFO] Êı¾İ¼¯ÌØÕ÷£¨±äÁ¿£©Êı¾İÀàĞÍ³õ²½ÅĞ¶¨£º
+ Ordered:['merchant_group_id', 'merchant_category_id', 'subsector_id', 'numerical_1', 'numerical_2', 'active_months_lag3', 'active_months_lag6', 'active_months_lag12', 'city_id', 'state_id', 'category_2'] 
+ Classification:['merchant_id', 'category_1', 'most_recent_sales_range', 'most_recent_purchases_range', 'category_4'] 
+ Continuous:['avg_sales_lag3', 'avg_purchases_lag3', 'avg_sales_lag6', 'avg_purchases_lag6', 'avg_sales_lag12', 'avg_purchases_lag12'] 
+ Other:[]
+2023-07-27 14:02:57,979 [INFO] Êı¾İ¼¯ÁĞÔªËØÊÇÎ¨Ò»µÄÁĞË÷ÒıÃû³Æ£º[]
+2023-07-27 14:02:57,979 [INFO] Êı¾İ¼¯×ÜĞĞÊıºÍ×ÜÁĞÊı£º(334696, 22)
+2023-07-27 14:02:58,154 [INFO] <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 334696 entries, 0 to 334695
 Data columns (total 22 columns):
  #   Column                       Non-Null Count   Dtype  
@@ -45,9 +45,8 @@ Data columns (total 22 columns):
 dtypes: float64(9), int64(8), object(5)
 memory usage: 56.2+ MB
 
-2023-06-05 14:50:32,601 [INFO] *****************ã€Šmerchantsã€‹æ•°æ®é›†æ ¸æŸ¥*****************
-2023-06-05 14:51:07,894 [INFO] *****************ã€Šmerchantsã€‹æ•°æ®é›†æ ¸æŸ¥*****************
-2023-06-05 14:51:09,000 [INFO] æ•°æ®é›†æ‰€æœ‰åˆ—ç´¢å¼•åç§°ï¼š
+2023-07-27 14:03:34,039 [INFO] *****************¡¶merchants¡·Êı¾İ¼¯ºË²é*****************
+2023-07-27 14:03:34,738 [INFO] Êı¾İ¼¯ËùÓĞÁĞË÷ÒıÃû³Æ£º
  Index(['merchant_id', 'merchant_group_id', 'merchant_category_id',
        'subsector_id', 'numerical_1', 'numerical_2', 'category_1',
        'most_recent_sales_range', 'most_recent_purchases_range',
@@ -56,14 +55,14 @@ memory usage: 56.2+ MB
        'avg_sales_lag12', 'avg_purchases_lag12', 'active_months_lag12',
        'category_4', 'city_id', 'state_id', 'category_2'],
       dtype='object')
-2023-06-05 14:51:09,067 [INFO] æ•°æ®é›†ç‰¹å¾ï¼ˆå˜é‡ï¼‰æ•°æ®ç±»å‹åˆæ­¥åˆ¤å®šï¼š
+2023-07-27 14:03:34,795 [INFO] Êı¾İ¼¯ÌØÕ÷£¨±äÁ¿£©Êı¾İÀàĞÍ³õ²½ÅĞ¶¨£º
  Ordered:['merchant_group_id', 'merchant_category_id', 'subsector_id', 'numerical_1', 'numerical_2', 'active_months_lag3', 'active_months_lag6', 'active_months_lag12', 'city_id', 'state_id', 'category_2'] 
  Classification:['merchant_id', 'category_1', 'most_recent_sales_range', 'most_recent_purchases_range', 'category_4'] 
  Continuous:['avg_sales_lag3', 'avg_purchases_lag3', 'avg_sales_lag6', 'avg_purchases_lag6', 'avg_sales_lag12', 'avg_purchases_lag12'] 
  Other:[]
-2023-06-05 14:51:09,261 [INFO] æ•°æ®é›†åˆ—å…ƒç´ æ˜¯å”¯ä¸€çš„åˆ—ç´¢å¼•åç§°ï¼š[]
-2023-06-05 14:51:09,262 [INFO] æ•°æ®é›†æ€»è¡Œæ•°å’Œæ€»åˆ—æ•°ï¼š(334696, 22)
-2023-06-05 14:51:09,546 [INFO] <class 'pandas.core.frame.DataFrame'>
+2023-07-27 14:03:34,948 [INFO] Êı¾İ¼¯ÁĞÔªËØÊÇÎ¨Ò»µÄÁĞË÷ÒıÃû³Æ£º[]
+2023-07-27 14:03:34,949 [INFO] Êı¾İ¼¯×ÜĞĞÊıºÍ×ÜÁĞÊı£º(334696, 22)
+2023-07-27 14:03:35,125 [INFO] <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 334696 entries, 0 to 334695
 Data columns (total 22 columns):
  #   Column                       Non-Null Count   Dtype  
