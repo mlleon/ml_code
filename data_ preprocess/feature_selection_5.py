@@ -9,6 +9,18 @@ from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.feature_selection import RFE
 from sklearn.model_selection import cross_val_score
 from matplotlib import pyplot as plt
+from sklearn.decomposition import PCA
+
+
+def get_x_coordinate_exceeding_threshold(explained_variance_ratio_cumsum, threshold):
+    selected_x_indices = np.where(explained_variance_ratio_cumsum > threshold)[0]
+
+    if selected_x_indices.size > 0:
+        x_threshold_index = selected_x_indices[0]
+        result = (x_threshold_index // 10 + 1) * 10
+        return result
+    else:
+        return None
 
 
 def find_interval_with_max_value(x_values, y_values):
@@ -117,8 +129,52 @@ def wrapper_filter(x, y):
     return feature
 
 
+def pca_filter(x, y):
+    # 1.使用PCA对数据降维
+    pca_line = PCA().fit(x)
+    plt.figure(figsize=(20, 5))
+
+    # 2.1绘制维度解释率累加曲线
+    plt.plot(np.cumsum(pca_line.explained_variance_ratio_))  # 将维度解释率累加
+    plt.xlabel('number of components after dimension reduction')
+    plt.ylabel('cumulative explained variance ratio')
+    plt.show()
+
+    # --------------------------------------------------------
+
+    # 2.2 继续缩小最佳维度的范围，绘制维度解释率累加曲线
+    threshold_index = get_x_coordinate_exceeding_threshold(np.cumsum(pca_line.explained_variance_ratio_), threshold=0.9)
+    scores = []
+    for i in range(1, threshold_index + 1, 10):
+        x_dr = PCA(i).fit_transform(x)
+        once = cross_val_score(RFC(n_estimators=10, random_state=0), x_dr, y, cv=5).mean()
+        scores.append(once)
+    plt.figure(figsize=(10, 8))
+    plt.plot(range(1, threshold_index + 1, 10), scores)
+    plt.show()
+
+    # 2.3进一步缩小最佳维度的范围，绘制维度解释率累加曲线
+    l_index, r_index = find_interval_with_max_value(range(1, threshold_index + 1, 10), scores)[:2]
+    scores_ = []
+    for i in range(l_index, r_index):
+        x_dr = PCA(i).fit_transform(x)
+        once_ = cross_val_score(RFC(n_estimators=10, random_state=0), x_dr, y, cv=5).mean()
+        scores_.append(once_)
+    plt.figure(figsize=(10, 8))
+    plt.plot(range(l_index, r_index), scores_)
+    plt.show()
+
+    # --------------------------------------------------------
+
+    # 获取PCA后最佳特征维度
+    max_x_index, max_y_value = find_interval_with_max_value(range(l_index, r_index), scores_)[2:]
+    x_dr = PCA(max_x_index).fit_transform(x)
+
+    return x_dr
+
+
 def feature_select(data, VarianceFilter=True, Chi2Filter=False, f_classifFilter=False,
-                   mutual_info_classifFilter=False, EmbeddedFilter=False, WrapperFilter=False):
+                   mutual_info_classifFilter=False, EmbeddedFilter=False, WrapperFilter=False, PcaFilter=False):
     # Split the dataset into features and labels
     x = data.iloc[:, 1:]
     y = data.iloc[:, 0]
@@ -145,12 +201,15 @@ def feature_select(data, VarianceFilter=True, Chi2Filter=False, f_classifFilter=
     if WrapperFilter:
         x = wrapper_filter(x, y)
 
+    if PcaFilter:
+        x = pca_filter(x, y)
+
     return x
 
 
 data = pd.read_csv(r'E:\gitlocal\ml_code\common_dataset\DigitRecognizor.csv')
 
 feature = feature_select(data, VarianceFilter=False, Chi2Filter=False, f_classifFilter=False,
-                         mutual_info_classifFilter=True, EmbeddedFilter=False, WrapperFilter=False)
+                         mutual_info_classifFilter=False, EmbeddedFilter=False, WrapperFilter=False, PcaFilter=True)
 
 print(feature.shape[1])
